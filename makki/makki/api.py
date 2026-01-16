@@ -80,18 +80,34 @@ def create_material_issue_from_so(sales_order):
     for item in so.items:
         # Skip non-stock items
         item_doc = frappe.get_cached_doc("Item", item.item_code)
+
         if not item_doc.is_stock_item:
-            continue
+            bundle = frappe.get_doc(
+            "Product Bundle",
+            item.item_code
+            )
+            if bundle:
+                for bundle_item in bundle.items:
+                    se_item = stock_entry.append("items")
+                    se_item.s_warehouse = source_warehouse
+                    se_item.item_code = bundle_item.item_code
+                    se_item.qty = bundle_item.qty * item.qty
+                    se_item.uom = bundle_item.uom
+                    se_item.stock_uom = bundle_item.uom,
+                    se_item.allow_zero_valuation_rate = 1
+        else:
+            # Add to Stock Entry items
+            se_item = stock_entry.append("items")
+            se_item.s_warehouse = source_warehouse
+            se_item.item_code = item.item_code
+            se_item.qty = item.qty
+            se_item.uom = item.uom
+            se_item.stock_uom = item_doc.stock_uom,
+            se_item.allow_zero_valuation_rate = 1        
+            
         
                
-        # Add to Stock Entry items
-        se_item = stock_entry.append("items")
-        se_item.s_warehouse = source_warehouse
-        se_item.item_code = item.item_code
-        se_item.qty = item.qty
-        se_item.uom = item.uom
-        se_item.stock_uom = item_doc.stock_uom,
-        se_item.allow_zero_valuation_rate = 1
+        
     
     # Check if any items were added
     
