@@ -86,7 +86,7 @@ def create_material_issue_from_so(sales_order):
             "Product Bundle",
             item.item_code
             )
-            if bundle:
+            if bundle and not bundle.disabled:
                 for bundle_item in bundle.items:
                     se_item = stock_entry.append("items")
                     se_item.s_warehouse = source_warehouse

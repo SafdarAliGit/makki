@@ -1,6 +1,5 @@
 # Copyright (c) 2025, Frappe Technologies Pvt. Ltd. and contributors
 # For license information, please see license.txt
-
 import frappe
 from frappe import _
 from frappe.utils import flt
@@ -54,40 +53,69 @@ def get_columns():
 def get_data(filters):
     conditions = get_conditions(filters)
     
-    # Combined query to get data grouped by Item Group only
-    query = """
+    # Get Sales Order data grouped by item_group
+    so_query = """
         SELECT 
-            item.item_group,
-            COALESCE(SUM(so_item.qty), 0) as so_qty,
-            COALESCE(SUM(so_item.amount), 0) as so_amount,
-            COALESCE(SUM(se_item.qty), 0) as se_qty,
-            COALESCE(SUM(se_item.amount), 0) as se_amount
+            so_item.item_group,
+            SUM(so_item.qty) as so_qty,
+            SUM(so_item.amount) as so_amount
         FROM 
-            `tabItem` item
-        LEFT JOIN 
-            `tabSales Order Item` so_item ON so_item.item_group = item.item_group
-        LEFT JOIN 
-            `tabSales Order` so ON so.name = so_item.parent AND so.docstatus = 1 {so_conditions}
-        LEFT JOIN 
-            `tabStock Entry Detail` se_item ON se_item.item_group = item.item_group
-        LEFT JOIN 
-            `tabStock Entry` se ON se.name = se_item.parent AND se.docstatus = 1 {se_conditions}
+            `tabSales Order Item` so_item
+        INNER JOIN 
+            `tabSales Order` so ON so.name = so_item.parent
         WHERE 
-            (so_item.name IS NOT NULL OR se_item.name IS NOT NULL)
+            so.docstatus = 1
+            {so_conditions}
         GROUP BY 
-            item.item_group
-        ORDER BY 
-            item.item_group
-    """.format(
-        so_conditions=conditions.get('so_conditions', ''),
-        se_conditions=conditions.get('se_conditions', '')
-    )
+            so_item.item_group
+    """.format(so_conditions=conditions.get('so_conditions', ''))
     
-    data = frappe.db.sql(query, filters, as_dict=1)
+    # Get Stock Entry data grouped by item_group
+    se_query = """
+        SELECT 
+            se_item.item_group,
+            SUM(se_item.qty) as se_qty,
+            SUM(se_item.amount) as se_amount
+        FROM 
+            `tabStock Entry Detail` se_item
+        INNER JOIN 
+            `tabStock Entry` se ON se.name = se_item.parent
+        WHERE 
+            se.docstatus = 1
+            {se_conditions}
+        GROUP BY 
+            se_item.item_group
+    """.format(se_conditions=conditions.get('se_conditions', ''))
     
-    # Calculate GP and GP percentage for each Item Group
-    for row in data:
-        row.gp = flt(row.so_amount) - flt(row.se_amount)
+    so_data = frappe.db.sql(so_query, filters, as_dict=1)
+    se_data = frappe.db.sql(se_query, filters, as_dict=1)
+    
+    # Create dictionaries for easy lookup
+    so_dict = {row.item_group: row for row in so_data}
+    se_dict = {row.item_group: row for row in se_data}
+    
+    # Get all unique item groups
+    all_item_groups = set(so_dict.keys()) | set(se_dict.keys())
+    
+    # Combine the data
+    data = []
+    for item_group in sorted(all_item_groups):
+        so_row = so_dict.get(item_group, {})
+        se_row = se_dict.get(item_group, {})
+        
+        so_qty = flt(so_row.get('so_qty', 0))
+        so_amount = flt(so_row.get('so_amount', 0))
+        se_qty = flt(se_row.get('se_qty', 0))
+        se_amount = flt(se_row.get('se_amount', 0))
+        
+        data.append({
+            'item_group': item_group,
+            'so_qty': so_qty,
+            'so_amount': so_amount,
+            'se_qty': se_qty,
+            'se_amount': se_amount,
+            'gp': so_amount - se_amount
+        })
     
     return data
 
@@ -107,12 +135,10 @@ def get_conditions(filters):
         sales_orders = filters.get("sales_order")
         if isinstance(sales_orders, str):
             sales_orders = [sales_orders]
-        
         if sales_orders:
             so_list = ", ".join([f"'{so}'" for so in sales_orders])
             so_conditions.append(f"AND so.name IN ({so_list})")
-            
-            # Link Stock Entry to Sales Order through Stock Entry Detail
+            # Link Stock Entry to Sales Order through custom field
             se_conditions.append(f"AND se.custom_sales_order IN ({so_list})")
     
     return {
