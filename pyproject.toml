@@ -1,10 +1,10 @@
 [project]
 name = "makki"
 authors = [
-    { name = "Safdar Ali", email = "safdar211@gmail.com"}
+    { name = "Safdar Ali", email = "safdar211@gmail.com" }
 ]
 description = "this for makki"
-requires-python = ">=3.14"
+requires-python = ">=3.10"
 readme = "README.md"
 dynamic = ["version"]
 dependencies = [
@@ -21,7 +21,7 @@ build-backend = "flit_core.buildapi"
 
 [tool.ruff]
 line-length = 110
-target-version = "py314"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = [
@@ -31,7 +31,7 @@ select = [
     "I",
     "UP",
     "B",
-    "RUF",
+    "RUF"
 ]
 ignore = [
     "B017", # assertRaises(Exception) - should be more specific
@@ -51,7 +51,7 @@ ignore = [
     "UP031", # Use format specifiers instead of percent format
     "UP032", # Use f-string instead of `format` call (translations)
     "UP037", # quoted annotations
-    "UP040", # Use type aliases instead of type annotations
+    "UP040"  # Use type aliases instead of type annotations
 ]
 typing-modules = ["frappe.types.DF"]
 
